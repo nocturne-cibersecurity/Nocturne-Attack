@@ -44,15 +44,16 @@ After it, in a terminal (bash) write: ls for find the proyect
 If you stay in linux, write cd for find the proyect and cd for
 enter to the directory, when you find the proyect, ejecute the proyect using python 3.*
 
-### Search the script
+**Search the script**
 ```
 ls
 ```
-### Find the location of the script
+**Find the location of the script**
 ```
 cd Documents
 cd Escritorio
 ```
+**Ejecute the script with python3 in dis of linux**
 ```
 IN THE BASH
 python3 nocturne.py
