@@ -1,7 +1,7 @@
 # DDoS-Nocturne Python
 
 *Simulador de tráfico para pruebas — proyecto para entender cómo funcionan las cargas y mitigación de tráfico.
-Estado: Experimental — uso únicamente en entornos controlados.*
+Estado: Experimental.*
 
 ```
 ****************************************
