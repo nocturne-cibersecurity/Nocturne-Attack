@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*
 
+
 import time
 import socket
 import os
@@ -25,11 +26,11 @@ print(r'''
 ''')
 host = input("URL TO DDoS ATACK: ")
 start_port = 0
-end_port = 10000
+end_port = 2000
 message = input("Input the message you want to send: ").encode()  # Encode string to bytes
 max_connections = int(input("Maximum simultaneous connections: "))  # Convert to integer
 
-print(f"\n[!] WARNING: Scanning ports 0-10000 on {host}")
+print(f"\n[!] WARNING: Scanning ports 0-2000 on {host}")
 print("[!] Note: Port scanning can be illegal without explicit permission")
 print("[!] Use this only on systems you own or have permission to test\n")
 
@@ -50,7 +51,7 @@ except socket.gaierror:
 def scan_port(port):
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(1)  # Shorter timeout for scanning
+            s.settimeout(0.03)  # Shorter timeout for scanning
             result = s.connect_ex((host, port))
             if result == 0:
                 print(f"[+] Port {port}: OPEN")
@@ -99,7 +100,6 @@ try:
         if answer in ['y', 'yes']:
             restart_program()
         else:
-            print("Made by Nocturne")
             print("Exiting...")
             sys.exit(0)
             
