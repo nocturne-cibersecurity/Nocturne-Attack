@@ -1,0 +1,104 @@
+import time
+import socket
+import os
+import sys
+import string
+
+def restart_program():
+    python = sys.executable
+    os.execl(python, python, *sys.argv)
+
+curdir = os.getcwd()
+
+print(r'''
+****************************************
+*________  ________           _________*
+*\______ \ \______ \   ____  /   _____/*
+* |    |  \ |    |  \ /  _ \ \_____  \ *
+* |    `   \|    `   (  <_> )         \*
+*/_______  /_______  /\____/________  /*
+*        \/        \/               \/ *
+**************************************** @Nocturne
+''')
+host = input("URL TO DDoS ATACK: ")
+start_port = 0
+end_port = 2000
+message = input("Input the message you want to send: ").encode()  # Encode string to bytes
+max_connections = int(input("Maximum simultaneous connections: "))  # Convert to integer
+
+print(f"\n[!] WARNING: Scanning ports 0-2000 on {host}")
+print("[!] Note: Port scanning can be illegal without explicit permission")
+print("[!] Use this only on systems you own or have permission to test\n")
+
+# Create a list of ports to scan
+ports_to_scan = range(start_port, end_port + 1)
+
+# Get IP address
+try:
+    ip = socket.gethostbyname(host)
+    print(f"[{ip}]")
+    print("[Ip is locked]")
+    print(f"[Attacking {host}]")
+    print("+----------------------------+")
+except socket.gaierror:
+    print("Error: Could not resolve hostname")
+    sys.exit(1)
+
+def scan_port(port):
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.03)  # Shorter timeout for scanning
+            result = s.connect_ex((host, port))
+            if result == 0:
+                print(f"[+] Port {port}: OPEN")
+                return port
+            else:
+                print(f"[-] Port {port}: CLOSED", end='\r')
+                return None
+    except Exception as e:
+        print(f"[!] Error scanning port {port}: {e}")
+        return None
+
+# Main scanning loop
+try:
+    open_ports = []
+    
+    # First, scan for open ports
+    print("\n[+] Starting port scan...")
+    for port in ports_to_scan:
+        open_port = scan_port(port)
+        if open_port is not None:
+            open_ports.append(open_port)
+    
+    if not open_ports:
+        print("\n[!] No open ports found in the specified range.")
+        sys.exit(0)
+        
+    print(f"\n[+] Found {len(open_ports)} open ports: {open_ports}")
+    
+    # Now, use the open ports for further operations
+    for port in open_ports:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(5)
+            s.connect((host, port))
+            print(f"[+] Connected to {host}:{port}")
+            s.close()
+            time.sleep(0.1)  # Small delay between connections
+        except Exception as e:
+            print(f"[!] Error connecting to {host}:{port} - {e}")
+    
+    print("+----------------------------+")
+    print("The connections you requested have finished")
+    
+    if __name__ == "__main__":
+        answer = input("Do you want to run again? (y/n): ").strip().lower()
+        if answer in ['y', 'yes']:
+            restart_program()
+        else:
+            print("Exiting...")
+            sys.exit(0)
+            
+except KeyboardInterrupt:
+    print("\nAttack stopped by user")
+    sys.exit(0)
