@@ -44,17 +44,27 @@ After it, in a terminal (bash) write: ls for find the proyect
 If you stay in linux, write cd for find the proyect and cd for
 enter to the directory, when you find the proyect, ejecute the proyect using python 3.*
 
+### Search the script
 ```
 ls
 ```
+### Find the location of the script
 ```
 cd Documents
 cd Escritorio
-
-cd Pycharm
-cd Proyects
 ```
 ```
 IN THE BASH
+python3 nocturne.py
+```
+
+# NOCTURNE.TXT
+
+This is a script ejecutable directly to the bash
+copy to clipboard and with CAT in the linux terminal and give permiss with chmod +x nocturne.py
+
+```
+cat nocturne.py
+chmod +x nocturne.py
 python3 nocturne.py
 ```
