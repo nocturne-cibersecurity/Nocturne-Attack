@@ -363,10 +363,10 @@ CONTACTO Y SOPORTE
 
 Para reportar problemas o sugerir mejoras:
 
-    GitHub: github.com/tu-usuario/nocturne-tool
+    GitHub: https://github.com/nocturne-cibersecurity
 
-    Email: seguridad@tu-dominio.com
+    Email: private
 
-Documentacion version: 1.0
-Ultima actualizacion: 2024
+Documentacion version: 1.1
+Ultima actualizacion: 2025
 Herramienta desarrollada por @Nocturne
