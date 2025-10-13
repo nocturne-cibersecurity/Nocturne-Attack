@@ -82,12 +82,13 @@ cat nocturne.py
 chmod +x nocturne.py
 python3 nocturne.py
 ```
-DOCUMENTACION - HERRAMIENTA DE PRUEBAS DE CARGA NOCTURNE
-DESCRIPCION GENERAL
+
+# DOCUMENTACION - HERRAMIENTA DE PRUEBAS DE CARGA NOCTURNE
+## DESCRIPCION GENERAL
 
 Nocturne es una herramienta profesional de pruebas de carga y seguridad diseñada para auditorias legitimas y testing de infraestructura. Desarrollada para equipos de seguridad y administradores de sistemas.
 
-Caracteristicas Principales:
+### Caracteristicas Principales:
 
     Interfaz multidioma (Espanol/Ingles)
 
@@ -97,7 +98,7 @@ Caracteristicas Principales:
 
     Enfoque en seguridad etica
 
-INDICE
+### INDICE
 
     Requisitos del Sistema
 
@@ -115,16 +116,13 @@ INDICE
 
     Solucion de Problemas
 
-REQUISITOS DEL SISTEMA
+### REQUISITOS DEL SISTEMA
 
-Requisitos Minimos:
+**Requisitos Minimos:**
 
     Python 3.8 o superior
-
     2 GB RAM
-
     100 MB espacio libre
-
     Conexion a internet (para dependencias)
 
 Dependencias Python:
@@ -135,7 +133,7 @@ Metodo 1: Ejecucion Directa
 python nocturne_tool.py
 
 Metodo 2: Clonacion
-git clone https://github.com/tu-usuario/nocturne-tool.git
+git clone https://github.com/nocturne-cibersecurity/DDoS-Nocturne
 cd nocturne-tool
 python nocturne_tool.py
 USO BASICO
@@ -367,6 +365,6 @@ Para reportar problemas o sugerir mejoras:
 
     Email: private
 
-Documentacion version: 1.1
+Documentacion version: 1.4
 Ultima actualizacion: 2025
 Herramienta desarrollada por @Nocturne
