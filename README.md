@@ -47,7 +47,8 @@ ejemplo: requirements.txt con locust, requests (si corresponde para simulación 
 ## Istalación
 ```
 git clone https://github.com/nocturne-cibersecurity/DDoS-Nocturne
-cd nocturne.py
+cd DDoS-Nocturne
+python3 nocturne.py
 ```
 ## Segunda Forma
 
