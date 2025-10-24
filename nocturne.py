@@ -6,8 +6,19 @@ import sys
 import threading
 import random
 import requests
+import stem
+import stem.control
 from concurrent.futures import ThreadPoolExecutor
+from urllib3.util.retry import Retry
+from urllib3.exceptions import MaxRetryError
+from requests.adapters import HTTPAdapter
 from urllib.parse import urlparse
+
+# Tor configuracion
+TOR_SOCKS_PORT = 9050  # Puerto default del socket
+TOR_CONTROL_PORT = 9051  # Puerto de control por defecto
+TOR_PASSWORD = None  # Contraseña si está configurada en torrc
+TOR_NEW_IDENTITY_DELAY = 5  # Segundos a esperar después de rotar IP
 
 # CERTIFICACIÓN HTTPS Y MEJORA VISUAL POR ERROR DE CERTIFICACIÓN HTTPS
 import urllib3
@@ -19,9 +30,117 @@ logging.captureWarnings(True)
 
 # Configuration configuracion
 class Config:
-    LANGUAGE = "english"  # "english" or "spanish"
+    LANGUAGE = "spanish"  # "english" or "spanish"
     EMOJIS = False
     MAX_WORKERS = 200
+    USE_TOR = True  # Activar Tor para todo el tráfico
+    TOR_ROTATION_INTERVAL = 60  # Rotar IP cada X segundos (0 para desactivar rotación automática)
+
+
+class TorController:
+    def __init__(self, control_port=TOR_CONTROL_PORT, password=TOR_PASSWORD):
+        self.control_port = control_port
+        self.password = password
+        self.controller = None
+
+    def __enter__(self):
+        try:
+            self.controller = stem.control.Controller.from_port(port=self.control_port)
+            if self.password:
+                self.controller.authenticate(self.password)
+            else:
+                self.controller.authenticate()
+            return self
+        except Exception as e:
+            print(f"Error connecting to Tor control port: {e}")
+            return None
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.controller:
+            self.controller.close()
+
+    def new_identity(self):
+        """Solicita una nueva identidad de Tor (nodo de salida)."""
+        if not self.controller:
+            print("Error: Controlador Tor no inicializado")
+            return False
+            
+        try:
+            # Forzar una nueva identidad
+            self.controller.signal(stem.Signal.NEWNYM)
+            
+            # Esperar el tiempo recomendado para evitar problemas
+            wait_time = max(self.controller.get_newnym_wait() or 5, 5)
+            print(f"Rotando IP. Esperando {wait_time} segundos...")
+            time.sleep(wait_time)
+            
+            # Verificar si la IP cambió
+            old_ip = self.get_current_ip()
+            time.sleep(1)
+            new_ip = self.get_current_ip()
+            
+            if old_ip and new_ip and old_ip != new_ip:
+                print(f"IP rotada exitosamente: {old_ip} -> {new_ip}")
+                return True
+            else:
+                print("Advertencia: No se pudo verificar el cambio de IP")
+                return False
+                
+        except Exception as e:
+            print(f"Error al rotar la identidad: {e}")
+            return False
+
+    def get_current_ip(self, session=None):
+        """Obte """
+        try:
+            if session is None:
+                session = self.get_tor_session()
+            return session.get('https://api.ipify.org').text
+        except Exception as e:
+            print(f"Error getting IP: {e}")
+            return None
+
+    @classmethod
+    def get_tor_session(cls):
+        """Crea una sesión requests que usa Tor con configuración mejorada."""
+        session = requests.session()
+        
+        # Configurar proxy Tor
+        session.proxies = {
+            'http': f'socks5h://127.0.0.1:{TOR_SOCKS_PORT}',
+            'https': f'socks5h://127.0.0.1:{TOR_SOCKS_PORT}'
+        }
+        
+        # Configurar timeout
+        session.timeout = 30
+        
+        # Configurar headers comunes
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:102.0) Gecko/20100101 Firefox/102.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
+        })
+        
+        # Configurar reintentos
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET", "POST"]
+        )
+        
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+        
+        return session
 
 
 class Translator:
@@ -555,19 +674,19 @@ def main():
     # Mostrar el banner
     print_banner()
     
-    # Selección de idioma
-    get_language_selection()
-
-    # Display menu
-    display_menu()
-
+    # Seleccionar idioma
+    language = get_language_selection()
+    if language == "1":
+        Config.LANGUAGE = "spanish"
+    
+    # Solicitar objetivo
     target = input(f"{t.get('enter_target')}: ").strip()
-
     if not target:
         print(t.get('error_no_target'))
         return
-
-    print(f"\n{t.get('select_attack')}:")
+    
+    # Mostrar menú de opciones
+    print("\n" + t.get('select_attack'))
     print("1. " + t.get('port_scan'))
     print("2. " + t.get('http_flood'))
     print("3. " + t.get('tcp_flood'))
@@ -617,7 +736,5 @@ def main():
     else:
         print(t.get('exiting'))
 
-
 if __name__ == "__main__":
     main()
-    
