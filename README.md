@@ -45,11 +45,17 @@ Este proyecto no debe usarse para atacar, interrumpir o comprometer sistemas de 
 ejemplo: requirements.txt con locust, requests (si corresponde para simulación local), etc.
 
 ## Istalación
-```
-git clone https://github.com/nocturne-cibersecurity/DDoS-Nocturne
-cd DDoS-Nocturne
-python3 nocturne.py
-```
+# Nocturne
+
+**Nocturne** — Herramienta de pruebas de red (modo educativo).  
+**IMPORTANTE:** Usar solo en entornos propios o con autorización expresa.
+
+## Quickstart
+Clona el repo:
+```bash
+git clone https://github.com/tu-usuario/nocturne.git
+cd nocturne
+
 ## Segunda Forma
 
 
