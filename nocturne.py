@@ -1,11 +1,10 @@
-#!/usr/bin/env python3
-
-import argparse
+import os
 import logging
 import time
 import socket
-import os
 import sys
+import json
+import os.path
 import threading
 import random
 import requests
@@ -15,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from urllib3.util.retry import Retry
 from urllib3.exceptions import MaxRetryError
 from requests.adapters import HTTPAdapter
-from urllib.parse import urlparse, urlparse as parse_url
+from urllib.parse import urlparse
 
 # Tor configuracion
 TOR_SOCKS_PORT = 9050  # Puerto default del socket
@@ -23,22 +22,60 @@ TOR_CONTROL_PORT = 9051  # Puerto de control por defecto
 TOR_PASSWORD = None  # Contraseña si está configurada en torrc
 TOR_NEW_IDENTITY_DELAY = 5  # Segundos a esperar después de rotar IP
 
-# CERTIFICACIÓN HTTPS Y MEJORA VISUAL POR ERROR DE CERTIFICACIÓN HTTPS
+# CERTIFICACIÓN HTTPS Y MEJORA VISUAL POR ERROR DE CERTIFICACIÓN HTTPS LO PONGO PARA EVITAR QUE HAYA ERRORES VISUALES
 import urllib3
 urllib3.disable_warnings()
 logging.captureWarnings(True)
-
-# ESPERO LES GUSTE MUCHO MI TOOL, SINCERAMENTE ME ESFORCÉ MUCHO EN HACERLA, ESPERO LES SEA UTIL PARA ENCONTRAR
 # VULNERABILIDADES EN SERVIDORES O SISTEMAS EN LOS QUE TENGAN AUTORIZACIÓN, ¿VERDAD?
 
 # Configuration configuracion
 class Config:
-    LANGUAGE = "spanish"  # "english" or "spanish"
-    EMOJIS = False
-    MAX_WORKERS = 200
-    USE_TOR = True  # Activar Tor para todo el tráfico
-    TOR_ROTATION_INTERVAL = 60  # Rotar IP cada X segundos (0 para desactivar rotación automática)
+    CONFIG_FILE = os.path.expanduser('~/.nocturne_config.json')
+    
+    # Valores por defecto
+    _defaults = {
+        'LANGUAGE': 'english',
+        'EMOJIS': False,
+        'MAX_WORKERS': 200,
+        'USE_TOR': True,
+        'TOR_ROTATION_INTERVAL': 30
+    }
+    
+    # Cargar configuración al inicio
+    @classmethod
+    def load_config(cls):
+        if os.path.exists(cls.CONFIG_FILE):
+            try:
+                with open(cls.CONFIG_FILE, 'r') as f:
+                    config = json.load(f)
+                for key, value in config.items():
+                    if key in cls._defaults:
+                        setattr(cls, key, value)
+            except Exception as e:
+                print(f"Error loading config: {e}")
+                # Si hay un error, usar valores por defecto
+                for key, value in cls._defaults.items():
+                    setattr(cls, key, value)
+        else:
+            # Usar valores por defecto si no existe el archivo
+            for key, value in cls._defaults.items():
+                setattr(cls, key, value)
+    
+    # Guardar configuración
+    @classmethod
+    def save_config(cls):
+        try:
+            config = {}
+            for key in cls._defaults:
+                config[key] = getattr(cls, key, cls._defaults[key])
+            
+            with open(cls.CONFIG_FILE, 'w') as f:
+                json.dump(config, f, indent=4)
+        except Exception as e:
+            print(f"Error saving config: {e}")
 
+# Cargar configuración al iniciar
+Config.load_config()
 
 class TorController:
     def __init__(self, control_port=TOR_CONTROL_PORT, password=TOR_PASSWORD):
@@ -67,28 +104,28 @@ class TorController:
         if not self.controller:
             print("Error: Controlador Tor no inicializado")
             return False
-            
+
         try:
             # Forzar una nueva identidad
             self.controller.signal(stem.Signal.NEWNYM)
-            
+
             # Esperar el tiempo recomendado para evitar problemas
             wait_time = max(self.controller.get_newnym_wait() or 5, 5)
             print(f"Rotando IP. Esperando {wait_time} segundos...")
             time.sleep(wait_time)
-            
+
             # Verificar si la IP cambió
             old_ip = self.get_current_ip()
             time.sleep(1)
             new_ip = self.get_current_ip()
-            
+
             if old_ip and new_ip and old_ip != new_ip:
                 print(f"IP rotada exitosamente: {old_ip} -> {new_ip}")
                 return True
             else:
                 print("Advertencia: No se pudo verificar el cambio de IP")
                 return False
-                
+
         except Exception as e:
             print(f"Error al rotar la identidad: {e}")
             return False
@@ -107,16 +144,16 @@ class TorController:
     def get_tor_session(cls):
         """Crea una sesión requests que usa Tor con configuración mejorada."""
         session = requests.session()
-        
+
         # Configurar proxy Tor
         session.proxies = {
             'http': f'socks5h://127.0.0.1:{TOR_SOCKS_PORT}',
             'https': f'socks5h://127.0.0.1:{TOR_SOCKS_PORT}'
         }
-        
+
         # Configurar timeout
         session.timeout = 30
-        
+
         # Configurar headers comunes
         session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:102.0) Gecko/20100101 Firefox/102.0',
@@ -130,7 +167,7 @@ class TorController:
             'Sec-Fetch-User': '?1',
             'Cache-Control': 'max-age=0',
         })
-        
+
         # Configurar reintentos
         retry_strategy = Retry(
             total=3,
@@ -138,18 +175,27 @@ class TorController:
             status_forcelist=[429, 500, 502, 503, 504],
             allowed_methods=["GET", "POST"]
         )
-        
+
         adapter = HTTPAdapter(max_retries=retry_strategy)
         session.mount("http://", adapter)
         session.mount("https://", adapter)
-        
+
         return session
 
 
 class Translator:
     def __init__(self):
-        self.messages = {
+        self.messages = { #La ia (copilot) me ayudo con esta tarea repetitiva
             "spanish": {
+                "settings_title": "CONFIGURACIÓN",
+                "current_language": "Idioma actual",
+                "use_tor": "Usar Tor",
+                "yes": "Sí",
+                "no": "No",
+                "back_to_menu": "Volver al menú principal",
+                "select_option": "Seleccione una opción",
+                "enabled": "activado",
+                "disabled": "desactivado",
                 "banner": "HERRAMIENTA DE PRUEBAS DDOS, DOS, HTTP, TCP, SLOWLORIS, PORT SCANNER",
                 "warning": "ADVERTENCIA: Usa solo en sistemas con autorización explícita",
                 "warning_legal": "El mal uso de esta herramienta puede ser ilegal",
@@ -187,6 +233,29 @@ class Translator:
                 "http_summary": "RESUMEN HTTP FLOOD",
                 "successful_requests": "Requests exitosos",
                 "failed_requests": "Requests fallidos",
+                "main_menu": "MENÚ PRINCIPAL",
+                "exit": "Salir",
+                "port_scan_title": "ESCANEO DE PUERTOS",
+                "http_flood_title": "HTTP FLOOD",
+                "tcp_flood_title": "TCP FLOOD",
+                "slowloris_title": "SLOWLORIS",
+                "ddos_title": "ATAQUE DDoS",
+                "enter_ip_or_domain": "Ingrese la dirección IP o dominio:",
+                "start_port_prompt": "Puerto inicial (predeterminado 1):",
+                "end_port_prompt": "Puerto final (predeterminado 1000):",
+                "enter_url": "Ingrese la URL objetivo (ej: http://ejemplo.com):",
+                "num_requests_prompt": "Número de peticiones:",
+                "delay_prompt": "Tiempo entre peticiones en segundos (predeterminado 0.1):",
+                "enter_ip": "Ingrese la dirección IP objetivo:",
+                "port_prompt": "Puerto objetivo:",
+                "num_connections_prompt": "Número de conexiones:",
+                "message_prompt": "Mensaje a enviar (opcional):",
+                "num_sockets_prompt": "Número de sockets (predeterminado 150):",
+                "duration_prompt": "Duración en segundos (predeterminado 60):",
+                "scan_completed": "Escaneo completado. Puertos abiertos: {}",
+                "starting_attack": "Iniciando ataque a {}",
+                "app_terminated": "Aplicación terminada por el usuario",
+                "critical_error": "Error crítico",
                 "total_time": "Tiempo total",
                 "requests_second": "Requests/segundo",
                 "starting_tcp_flood": "Iniciando TCP Flood a {}:{}",
@@ -216,6 +285,15 @@ class Translator:
                 "result": "RESULTADO: {} puertos abiertos: {}"
             },
             "english": {
+                "settings_title": "SETTINGS",
+                "current_language": "Current language",
+                "use_tor": "Use Tor",
+                "yes": "Yes",
+                "no": "No",
+                "back_to_menu": "Back to main menu",
+                "select_option": "Select an option",
+                "enabled": "enabled",
+                "disabled": "disabled",
                 "banner": "LOAD TESTING DDOS, DOS, HTTP, TCP, SLOWLORIS, PORT SCANNER",
                 "warning": "WARNING: Use only on systems with explicit authorization",
                 "warning_legal": "Misuse of this tool may be illegal",
@@ -253,6 +331,29 @@ class Translator:
                 "http_summary": "HTTP FLOOD SUMMARY",
                 "successful_requests": "Successful requests",
                 "failed_requests": "Failed requests",
+                "main_menu": "MAIN MENU",
+                "exit": "Exit",
+                "port_scan_title": "PORT SCAN",
+                "http_flood_title": "HTTP FLOOD",
+                "tcp_flood_title": "TCP FLOOD",
+                "slowloris_title": "SLOWLORIS",
+                "ddos_title": "DDoS ATTACK",
+                "enter_ip_or_domain": "Enter IP address or domain:",
+                "start_port_prompt": "Start port (default 1):",
+                "end_port_prompt": "End port (default 1000):",
+                "enter_url": "Enter target URL (e.g., http://example.com):",
+                "num_requests_prompt": "Number of requests:",
+                "delay_prompt": "Time between requests in seconds (default 0.1):",
+                "enter_ip": "Enter target IP address:",
+                "port_prompt": "Target port:",
+                "num_connections_prompt": "Number of connections:",
+                "message_prompt": "Message to send (optional):",
+                "num_sockets_prompt": "Number of sockets (default 150):",
+                "duration_prompt": "Duration in seconds (default 60):",
+                "scan_completed": "Scan completed. Open ports: {}",
+                "starting_attack": "Starting attack to {}",
+                "app_terminated": "Application terminated by user",
+                "critical_error": "Critical error",
                 "total_time": "Total time",
                 "requests_second": "Requests/second",
                 "starting_tcp_flood": "Starting TCP Flood to {}:{}",
@@ -284,8 +385,8 @@ class Translator:
         }
 
     def get(self, key):
-        lang = Config.LANGUAGE
-        return self.messages.get(lang, {}).get(key, key)
+        lang = getattr(Config, 'LANGUAGE', 'english')
+        return self.messages.get(lang, {}).get(key, self.messages['english'].get(key, key))
 
 
 # Initialize translator
@@ -301,8 +402,10 @@ def restart_program():
 
 #GRACIAS RONALD, POR HACER PÚBLICA TU ARTE, DE CORAZÓN, NOCTURNE...
 
-def print_banner():
-    print(r'''
+def get_random_banner():
+    banners = [
+        # Banner 1 - Estilo original mi favorito la verdad jsjs
+        r'''
      .:'           NOCTURNE ATTACK            `:.
      ::'                                      `::
      :: :.      .:!!.            .:!!.      .: ::
@@ -324,11 +427,47 @@ def print_banner():
                    :`...........':
                    ` :`.     .': '
                     `:  `"""'  :'   @Nocturne
-''')
+        ''',
+        # Banner 2 - Estilo alternativo 1 me gusta mucho
+        r'''
+    ███╗   ██╗ ██████╗  ██████╗████████╗██╗   ██╗██████╗ ███╗   ██╗███████╗
+    ████╗  ██║██╔═══██╗██╔════╝╚══██╔══╝██║   ██║██╔══██╗████╗  ██║██╔════╝
+    ██╔██╗ ██║██║   ██║██║        ██║   ██║   ██║██████╔╝██╔██╗ ██║█████╗  
+    ██║╚██╗██║██║   ██║██║        ██║   ██║   ██║██╔══██╗██║╚██╗██║██╔══╝  
+    ██║ ╚████║╚██████╔╝╚██████╗   ██║   ╚██████╔╝██║  ██║██║ ╚████║███████╗
+    ╚═╝  ╚═══╝ ╚═════╝  ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝
+    ======================================================================
+        ''',
+        # Banner 3 - Estilo alternativo 2 meh
+        r'''
+    ╔╦╗╔═╗ ╔═╗╔╦╗╦ ╦╔═╗╔╗╔╔╦╗  ╔═╗╔╦╗╔═╗╔═╗╔╦╗
+    ║║║╠═╣ ║   ║ ║ ║║ ║║║║ ║║  ╠═╣ ║║║╣ ║   ║ 
+    ╩ ╩╩ ╩ ╚═╝ ╩ ╚═╝╚═╝╝╚╝═╩╝  ╩ ╩═╩╝╚═╝╚═╝ ╩ 
+    =========================================
+    ''',
+        # Banner 4 - Estilo alternativo 3 me encanta que parezca cascada, este y el de arriba los creo chatGPT
+        r'''
+    ░▒▓███████▓▒░ ▒█████   ▒█████  ▄▄▄█████▓
+    ░▒▓█   ▓███▄▒▒██▒  ██▒▒██▒  ██▒▓  ██▒ ▓▒
+    ░▒███  ▓██▓  ▒██░  ██▒▒██░  ██▒▒ ▓██░ ▒░
+    ░▒▓█  ░██▒  ░██   █▀ ▒██   ██░░ ▓██▓ ░ 
+    ░░▒████▓▓  ░▒█████▓ ░ ████▓▒░  ▒██▒ ░ 
+    ░ ▒░▒░▒░  ░▒▓▒ ▒ ▒ ░ ▒░▒░▒░   ▒ ░░   
+      ░ ▒ ▒░  ░░▒░ ░ ░   ░ ▒ ▒░     ░    
+    ░ ░ ░ ▒    ░░░ ░ ░ ░ ░ ░ ▒    ░      
+        ░ ░      ░         ░ ░           
+    ===============================
+    '''
+    ]
+    return random.choice(banners)
+
+def print_banner():
+    # Mostrar un banner aleatorio, y... siii lo admito, me inspire en metasploit
+    print(get_random_banner())
 
 
 def display_menu():
-    """Display interactive menu"""
+    """Display interactive menu "segun es interactivo jeje"""
     print("\n" + "=" * 60)
     print(f" {t.get('banner')}")
     print("=" * 60)
@@ -337,8 +476,13 @@ def display_menu():
     print("=" * 60)
 
 
+def restart_program():
+    """Reinicia el programa para aplicar los cambios de configuración"""
+    python = sys.executable
+    os.execl(python, python, *sys.argv)
+
 def get_language_selection():
-    """Get language selection from user"""
+    """Obtiene la selección de idioma del usuario"""
     print("\nSelect language / Selecciona idioma:")
     print("1. English")
     print("2. Español")
@@ -349,7 +493,7 @@ def get_language_selection():
         Config.EMOJIS = False
     else:
         Config.LANGUAGE = "english"
-        Config.EMOJIS = False
+        Config.EMOJIS = True  # Asegurarse de que los emojis estén activados para inglés
 
 
 def format_message(message):
@@ -673,294 +817,24 @@ def ddos_attack(target_url, duration=60):
     print(f"{t.get('requests_second')}: {requests_sent / (end_time - start_time):.2f}")
 
 
-def print_help():
-
-    help_text = """
-    
-     .:'           NOCTURNE ATTACK            `:.
-     ::'                                      `::
-     :: :.      .:!!.            .:!!.      .: ::
-      `:. `:.    !::!          !::!    .:'  .:'
-       `::. `::  !:::'!.      .!':::!  ::' .::'
-         `::.`::.  `!:'`:::::'':!'  .::'.::'
-           `:.  `::::'  `!!'  '::::'   ::'
-           :'*:::.   .:'  !!  `:.  .:::*`:
-           ::  HHH::.   ` !! '   .::HHH ::
-           ::: `H TH::.  `!!  .::HT H' :::
-           ::..  `THHH:`:   :':HHHT'  ..::
-           `::      `T: `. .' :T'      ::'
-             `:. .   :  >  <  :   . .:'
-               `::'    \    /    `::'
-                :'  .`. \__/ .'.  `:
-                 :' ::.       .:: `:
-                 :' `:::     :::' `:
-                  `.  ``     ''  .'
-                   :`...........':
-                   ` :`.     .': '
-                    `:  `''''  :'   @Nocturne
-    
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                     Nocturne Attack Tool - Help                              ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-
-   MODO DE USO:
-  python main.py [OPCIONES] [TARGET] [COMANDO] [PARÁMETROS]
-
-   EJEMPLOS RÁPIDOS:
-  Escanear puertos:         python nocturne.py example.com scan --start-port 80 --end-port 100
-  Ataque HTTP:              python nocturne.py example.com http --requests 1000 --tor
-  Ataque TCP:               python nocturne.py example.com tcp --port 80 --connections 500
-  Ataque Slowloris:         python nocturne.py example.com slowloris --sockets 200
-  Ataque DDoS:              python nocturne.py example.com ddos --duration 120 --tor
-
-  OPCIONES GENERALES:
-  TARGET                    URL o dirección IP del objetivo
-  -l, --language {es,en}    Idioma de la interfaz (predeterminado: es)
-  --tor                     Usar red Tor para el anonimato
-  --tor-rotation SEGS       Rotar IP de Tor cada X segundos (0=desactivado, predet: 60)
-
-   COMANDOS DISPONIBLES:
-  scan      Escaneo de puertos
-  http      Ataque HTTP Flood
-  tcp       Ataque TCP Flood
-  slowloris Ataque Slowloris
-  ddos      Ataque DDoS combinado
-
-    Para más ayuda sobre un comando específico:
-   python main.py [COMANDO] --help
-
-    ADVERTENCIA: Esta herramienta podria meterte en problemas legales.
-"""
-    print(help_text)
-    sys.exit(0)
-
-def print_command_help(command):
-    """Muestra ayuda detallada para un comando específico."""
-    helps = {
-        'scan': """
-📌 ESCANEO DE PUERTOS
-  Uso: python main.py TARGET scan [OPCIONES]
-
-  Opciones:
-    --start-port NUM  Puerto inicial (predeterminado: 1)
-    --end-port NUM    Puerto final (predeterminado: 1000)
-
-  Ejemplo:
-    python main.py example.com scan --start-port 80 --end-port 1000
-""",
-        'http': """
-📌 HTTP FLOOD
-  Uso: python main.py TARGET http --requests NUM [OPCIONES]
-
-  Opciones requeridas:
-    --requests NUM    Número de peticiones a enviar
-
-  Opcionales:
-    --delay SEGS      Segundos entre peticiones (pred: 0.1)
-
-  Ejemplo con Tor:
-    python main.py example.com http --requests 5000 --delay 0.05 --tor
-""",
-        'tcp': """
-📌 TCP FLOOD
-  Uso: python main.py TARGET tcp --port NUM --connections NUM [OPCIONES]
-
-  Opciones requeridas:
-    --port NUM        Puerto objetivo
-    --connections NUM Número de conexiones
-
-  Opcionales:
-    --message TEXTO   Mensaje a enviar (opcional)
-
-  Ejemplo:
-    python main.py example.com tcp --port 80 --connections 1000
-""",
-        'slowloris': """
-📌 SLOWLORIS
-  Uso: python main.py TARGET slowloris [OPCIONES]
-
-  Opciones:
-    --sockets NUM     Número de sockets a usar (pred: 150)
-
-  Ejemplo con rotación de Tor:
-    python main.py example.com slowloris --sockets 200 --tor --tor-rotation 30
-""",
-        'ddos': """
-📌 ATAQUE DDoS
-  Uso: python main.py TARGET ddos [OPCIONES]
-
-  Opciones:
-    --duration SEGS   Duración del ataque en segundos (pred: 60)
-
-  Ejemplo con Tor:
-    python main.py example.com ddos --duration 300 --tor
-"""
-    }
-    
-    if command in helps:
-        print(helps[command])
-    else:
-        print(f"Comando desconocido: {command}")
-    sys.exit(0)
-
-def parse_arguments():
-    """Parse command line arguments."""
-    # Crear el parser principal
-    parser = argparse.ArgumentParser(
-        description='Herramienta de pruebas de red',
-        add_help=False
-    )
-    
-    # Manejar el comando de ayuda global
-    if len(sys.argv) == 1 or sys.argv[1] in ['-h', '--help']:
-        print_help()
-    
-    # Manejar ayuda de comandos específicos
-    if len(sys.argv) > 1 and sys.argv[1] in ['scan', 'http', 'tcp', 'slowloris', 'ddos'] and \
-       (len(sys.argv) == 2 or sys.argv[2] in ['-h', '--help']):
-        print_command_help(sys.argv[1])
-    
-    # Grupo para argumentos generales
-    general_group = parser.add_argument_group('Opciones generales')
-    general_group.add_argument('target', nargs='?', help='URL o IP del objetivo')
-    general_group.add_argument('-l', '--language', choices=['es', 'en'], default='es',
-                      help='Idioma de la interfaz')
-    general_group.add_argument('--tor', action='store_true',
-                      help='Usar red Tor para las conexiones')
-    general_group.add_argument('--tor-rotation', type=int, default=60,
-                      help='Intervalo de rotación de IPs de Tor (0=desactivado)')
-    general_group.add_argument('-h', '--help', action='store_true',
-                      help='Mostrar este mensaje de ayuda y salir')
-    
-    # Subcomandos
-    subparsers = parser.add_subparsers(
-        dest='command',
-        title='comandos disponibles',
-        description='Los siguientes comandos están disponibles:',
-        metavar='COMANDO',
-        required=False
-    )
-    
-    # Comando: scan
-    scan_help = '''
-    Escanea puertos en un objetivo.
-    
-    Ejemplo:
-      python main.py example.com scan --start-port 1 --end-port 1000
-    '''
-    scan_parser = subparsers.add_parser(
-        'scan',
-        help='Escaneo de puertos',
-        description='Escanea puertos en un objetivo',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='Ejemplo: python main.py example.com scan --start-port 1 --end-port 1000'
-    )
-    scan_parser.add_argument('--start-port', type=int, default=1, 
-                           help='Puerto inicial (predeterminado: 1)')
-    scan_parser.add_argument('--end-port', type=int, default=1000, 
-                           help='Puerto final (predeterminado: 1000)')
-    
-    # Comando: http
-    http_help = '''
-    Realiza un ataque HTTP Flood.
-    
-    Ejemplo:
-      python main.py example.com http --requests 1000 --delay 0.1 --tor
-    '''
-    http_parser = subparsers.add_parser(
-        'http', 
-        help='Ataque HTTP Flood',
-        description='Realiza un ataque HTTP Flood al objetivo',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='Ejemplo: python main.py example.com http --requests 1000 --delay 0.1'
-    )
-    http_parser.add_argument('--requests', type=int, required=True, 
-                           help='Número de requests a enviar (requerido)')
-    http_parser.add_argument('--delay', type=float, default=0.1, 
-                           help='Segundos entre requests (predeterminado: 0.1)')
-    
-    # Comando: tcp
-    tcp_help = '''
-    Realiza un ataque TCP Flood.
-    
-    Ejemplo:
-      python main.py example.com tcp --port 80 --connections 100 --message "test"
-    '''
-    tcp_parser = subparsers.add_parser(
-        'tcp', 
-        help='Ataque TCP Flood',
-        description='Realiza un ataque TCP Flood al objetivo',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='Ejemplo: python main.py example.com tcp --port 80 --connections 100'
-    )
-    tcp_parser.add_argument('--port', type=int, required=True, 
-                          help='Puerto objetivo (requerido)')
-    tcp_parser.add_argument('--connections', type=int, required=True, 
-                          help='Número de conexiones (requerido)')
-    tcp_parser.add_argument('--message', default='', 
-                          help='Mensaje a enviar (opcional)')
-    
-    # Comando: slowloris
-    slowloris_help = '''
-    Realiza un ataque Slowloris.
-    
-    Ejemplo:
-      python main.py example.com slowloris --sockets 200
-    '''
-    slowloris_parser = subparsers.add_parser(
-        'slowloris', 
-        help='Ataque Slowloris',
-        description='Realiza un ataque Slowloris al objetivo',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='Ejemplo: python main.py example.com slowloris --sockets 200'
-    )
-    slowloris_parser.add_argument('--sockets', type=int, default=150, 
-                                help='Número de sockets a usar (predeterminado: 150)')
-    
-    # Comando: ddos
-    ddos_help = '''
-    Realiza un ataque DDoS combinando múltiples técnicas.
-    
-    Ejemplo:
-      python main.py example.com ddos --duration 60 --tor
-    '''
-    ddos_parser = subparsers.add_parser(
-        'ddos', 
-        help='Ataque DDoS',
-        description='Realiza un ataque DDoS combinando múltiples técnicas',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='Ejemplo: python main.py example.com ddos --duration 60'
-    )
-    ddos_parser.add_argument('--duration', type=int, default=60, 
-                           help='Duración del ataque en segundos (predeterminado: 60)')
-    
-    args = parser.parse_args()
-    
-    # Si se especifica un objetivo pero no un comando, mostrar mensaje de ayuda
-    if args.target and not args.command:
-        print("Error: Se requiere especificar un comando cuando se proporciona un objetivo.")
-        print("Ejemplo: python main.py example.com scan")
-        parser.print_help()
-        sys.exit(1)
-        
-    return args
-
 def interactive_mode():
     """Modo interactivo con menú."""
     # Mostrar el banner
     print_banner()
+
+    # Seleccionar idioma al inicio
+    get_language_selection()
     
-    # Seleccionar idioma
-    language = get_language_selection()
-    if language == "1":
-        Config.LANGUAGE = "spanish"
-    
+    # Limpiar pantalla y volver a mostrar el banner con el idioma seleccionado
+    os.system('clear' if os.name == 'posix' else 'cls')
+    print_banner()
+
     # Solicitar objetivo
     target = input(f"{t.get('enter_target')}: ").strip()
     if not target:
         print(t.get('error_no_target'))
         return
-    
+
     # Mostrar menú de opciones
     print("\n" + t.get('select_attack'))
     print("1. " + t.get('port_scan'))
@@ -1013,94 +887,142 @@ def interactive_mode():
         print(t.get('exiting'))
 
 def main():
-    """Función principal."""
-    args = parse_arguments()
+    """Función principal con menú interactivo."""
+    # Cargar configuración
+    Config.load_config()
     
-    # Configurar idioma
-    Config.LANGUAGE = 'spanish' if args.language == 'es' else 'english'
+    # Mostrar banner
+    print_banner()
     
-    # Configurar Tor si está habilitado
-    Config.USE_TOR = args.tor
-    Config.TOR_ROTATION_INTERVAL = args.tor_rotation
+    # Seleccionar idioma al inicio
+    get_language_selection()
     
-    # Inicializar Tor si está habilitado
-    tor_controller = None
-    if Config.USE_TOR:
-        tor_controller = TorController()
+    # Limpiar pantalla y volver a mostrar el banner con el idioma seleccionado
+    os.system('clear' if os.name == 'posix' else 'cls')
+    print_banner()
+    
+    while True:
         try:
-            with tor_controller as controller:
-                if controller:
-                    ip = controller.get_current_ip()
-                    if ip:
-                        print(f"[+] Usando Tor. IP actual: {ip}")
+            # Mostrar menú principal
+            print("\n=== " + t.get('main_menu') + " ===")
+            print("1. " + t.get('port_scan'))
+            print("2. " + t.get('http_flood'))
+            print("3. " + t.get('tcp_flood'))
+            print("4. " + t.get('slowloris'))
+            print("5. " + t.get('ddos_sim'))
+            print("6. " + t.get('settings_title'))
+            print("0. " + t.get('exit'))
+            
+            opcion = input("\n>> ").strip()
+            
+            if opcion == '0':
+                print(f"\n{t.get('exiting')}")
+                break
+                
+            elif opcion == '1':
+                # Escaneo de puertos
+                print("\n=== " + t.get('port_scan_title') + " ===")
+                target = input(t.get('enter_ip_or_domain') + " ").strip()
+                start_port = input(t.get('start_port_prompt') + " ").strip() or "1"
+                end_port = input(t.get('end_port_prompt') + " ").strip() or "1000"
+                
+                try:
+                    open_ports = port_scan(target, int(start_port), int(end_port))
+                    print("\n[+] " + t.get('scan_completed').format(open_ports))
+                except Exception as e:
+                    print(f"[!] Error: {e}")
+            
+            elif opcion == '2':
+                # HTTP Flood
+                print("\n=== " + t.get('http_flood_title') + " ===")
+                target = input(t.get('enter_url') + " ").strip()
+                num_requests = input(t.get('num_requests_prompt') + " ").strip()
+                delay = input(t.get('delay_prompt') + " ").strip() or "0.1"
+                
+                try:
+                    print("\n[+] " + t.get('starting_attack').format(target))
+                    http_flood(target, int(num_requests), float(delay))
+                except Exception as e:
+                    print(f"[!] Error: {e}")
+            
+            elif opcion == '3':
+                # TCP Flood
+                print("\n=== " + t.get('tcp_flood_title') + " ===")
+                target = input(t.get('enter_ip') + " ").strip()
+                port = input(t.get('port_prompt') + " ").strip()
+                num_conn = input(t.get('num_connections_prompt') + " ").strip()
+                message = input(t.get('message_prompt') + " ").strip() or "X" * 1024
+                
+                try:
+                    print("\n[+] " + t.get('starting_tcp_flood').format(target, port))
+                    tcp_flood(target, int(port), int(num_conn), message)
+                except Exception as e:
+                    print(f"[!] Error: {e}")
+            
+            elif opcion == '4':
+                # Slowloris
+                print("\n=== " + t.get('slowloris_title') + " ===")
+                target = input(t.get('enter_url') + " ").strip()
+                num_sockets = input(t.get('num_sockets_prompt') + " ").strip() or "150"
+                
+                try:
+                    print("\n[+] " + t.get('starting_attack').format(target))
+                    slowloris_attack(target, int(num_sockets))
+                except Exception as e:
+                    print(f"[!] Error: {e}")
+            
+            elif opcion == '5':
+                # DDoS
+                print("\n=== " + t.get('ddos_title') + " ===")
+                target = input(t.get('enter_url') + " ").strip()
+                duration = input(t.get('duration_prompt') + " ").strip() or "60"
+                
+                try:
+                    print("\n[+] " + t.get('starting_attack').format(target))
+                    ddos_attack(target, int(duration))
+                except Exception as e:
+                    print(f"[!] Error: {e}")
+            
+            elif opcion == '6':
+                # Configuración
+                while True:
+                    print(f"\n=== {t.get('settings_title')} ===")
+                    print(f"1. {t.get('current_language')}: {t.get(Config.LANGUAGE)}")
+                    print(f"2. {t.get('use_tor')}: {t.get('yes' if Config.USE_TOR else 'no')}")
+                    print(f"0. {t.get('back_to_menu')}")
+                    
+                    config_opcion = input(f"\n{t.get('select_option')} >> ").strip()
+                    
+                    if config_opcion == '0':
+                        break
                         
-                        # Iniciar rotación automática de IP si está habilitada
-                        if Config.TOR_ROTATION_INTERVAL > 0:
-                            def rotate_ip_periodically():
-                                while True:
-                                    time.sleep(Config.TOR_ROTATION_INTERVAL)
-                                    with TorController() as tc:
-                                        if tc:
-                                            tc.new_identity()
-                            
-                            rotation_thread = threading.Thread(
-                                target=rotate_ip_periodically,
-                                daemon=True
-                            )
-                            rotation_thread.start()
-                            print(f"[+] Rotación automática de IP cada {Config.TOR_ROTATION_INTERVAL} segundos")
+                    elif config_opcion == '1':
+                        get_language_selection()
+                        break  # El programa se reiniciará, pero por si acaso
+                        
+                    elif config_opcion == '2':
+                        Config.USE_TOR = not Config.USE_TOR
+                        print(f"Tor {t.get('enabled' if Config.USE_TOR else 'disabled')}")
+                    
                     else:
-                        print("[-] No se pudo obtener la IP de Tor")
-                else:
-                    print("[-] No se pudo conectar al control de Tor")
+                        print(t.get('invalid_option'))
+            
+                print("\n[!] " + t.get('error_invalid_option'))
+                
+        except KeyboardInterrupt:
+            print("\n[!] " + t.get('operation_cancelled'))
+            continue
         except Exception as e:
-            print(f"[-] Error al conectar con Tor: {e}")
-    
-    # Si no hay argumentos o no se especificó un comando, entrar en modo interactivo
-    if not args.command and not args.target:
-        return interactive_mode()
-    
-    # Verificar que se haya proporcionado un objetivo
-    if not args.target:
-        print("Error: Se requiere un objetivo. Use --help para ayuda.")
-        return
-    
-    try:
-        # Ejecutar el comando correspondiente
-        if args.command == 'scan':
-            open_ports = port_scan(args.target, args.start_port, args.end_port)
-            print(f"\n[+] Escaneo completado. Puertos abiertos: {open_ports}")
-            
-        elif args.command == 'http':
-            print(f"[+] Iniciando HTTP Flood a {args.target} con {args.requests} requests...")
-            http_flood(args.target, args.requests, args.delay)
-            
-        elif args.command == 'tcp':
-            print(f"[+] Iniciando TCP Flood a {args.target}:{args.port} con {args.connections} conexiones...")
-            tcp_flood(args.target, args.port, args.connections, args.message)
-            
-        elif args.command == 'slowloris':
-            print(f"[+] Iniciando ataque Slowloris a {args.target} con {args.sockets} sockets...")
-            slowloris_attack(args.target, args.sockets)
-            
-        elif args.command == 'ddos':
-            print(f"[+] Iniciando ataque DDoS a {args.target} por {args.duration} segundos...")
-            ddos_attack(args.target, args.duration)
-            
-        else:
-            print("Comando no reconocido. Use --help para ver la ayuda.")
-            
-    except KeyboardInterrupt:
-        print("\n[!] Operación cancelada por el usuario")
-    except Exception as e:
-        print(f"[!] Error: {e}")
+            print("\n[!] " + t.get('error_general') + ": " + str(e))
+            continue
 
-if __name__ == "__main__":
+if __name__ == "__main__": # No me gusta eliminar los comentarios
     try:
         main()
     except KeyboardInterrupt:
-        print("\n[!] Aplicación terminada por el usuario")
+        print("\n[!] " + t.get('operation_cancelled'))
+        print("\n[!] " + t.get('app_terminated'))
         sys.exit(0)
     except Exception as e:
-        print(f"[!] Error crítico: {e}")
+        print("[!] " + t.get('critical_error') + ": " + str(e))
         sys.exit(1)
