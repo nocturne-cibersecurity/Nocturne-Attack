@@ -32,7 +32,7 @@ Nocturne es una herramienta avanzada de pruebas de seguridad y pruebas de estré
 ```bash
 # Clonar el repositorio
 git clone https://github.com/nocturne-cibersecurity/Nocturne-Attack
-cd nocturne
+cd Nocturne-Attack
 
 # Instalar dependencias
 pip install -r requirements.txt
