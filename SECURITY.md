@@ -77,6 +77,6 @@ El uso malintencionado de esta herramienta es estrictamente prohibido y puede se
 
 ---
 
-*Última actualización: Octubre 2023*
+*Última actualización: Octubre 2025*
 
-*© 2023 Nocturne Project. Todos los derechos reservados.*
+*© 2025 Nocturne Project. Todos los derechos reservados.*
